@@ -17,7 +17,7 @@ fs.mkdirSync(OUT, { recursive: true })
 
 const resultados = []
 const passo = async (nome, fn) => {
-  try { await fn(); resultados.push(['PASSOU', nome]) } catch (e) { resultados.push(['FALHOU', nome + ' :: ' + String(e.message).split('\n')[0]]) }
+  try { await globalThis.__fechar?.(); await fn(); resultados.push(['PASSOU', nome]); console.log('PASSOU', nome) } catch (e) { const m = String(e.message).split('\n')[0]; resultados.push(['FALHOU', nome + ' :: ' + m]); console.log('FALHOU', nome, '::', m) }
 }
 
 ;(async () => {
@@ -30,14 +30,16 @@ const passo = async (nome, fn) => {
       user: { id: u, aud: 'authenticated', role: 'authenticated', email: 'dono@teste.local', app_metadata: {}, user_metadata: {}, created_at: new Date().toISOString() },
     }))
   }, [token, USER])
-  const page = await ctx.newPage()
+  const page = await ctx.newPage(); page.setDefaultTimeout(8000)
+  globalThis.__fechar = async () => { for (let i = 0; i < 3 && (await page.getByRole('dialog').count()); i++) { await page.keyboard.press('Escape'); await page.waitForTimeout(150) } }
   const erros = []
   page.on('pageerror', (e) => erros.push('pageerror: ' + e.message))
   page.on('console', (m) => { if (m.type() === 'error' && !m.text().includes('Failed to load resource')) erros.push('console: ' + m.text()) })
+  const D = () => page.getByRole('dialog').last()
   const shot = (n) => page.screenshot({ path: `${OUT}/${n}.png`, fullPage: true })
   const menu = (nome) => page.getByRole('navigation').getByRole('link', { name: nome, exact: true }).click()
   const salvar = (nome = 'Salvar') => page.getByRole('dialog').getByRole('button', { name: nome, exact: true }).click()
-  const toastTexto = (t) => page.getByRole('status').getByText(t).waitFor({ timeout: 8000 })
+  const toastTexto = (t) => page.getByRole('status').getByText(t).first().waitFor({ timeout: 8000 })
 
   await page.goto(BASE)
   await passo('Dashboard abre sem empresas (estado vazio)', async () => {
@@ -50,8 +52,8 @@ const passo = async (nome, fn) => {
     await menu('Empresas')
     for (const [rs, nf, cnpj, reg] of empresas) {
       await page.getByRole('button', { name: 'Nova empresa' }).click()
-      await page.getByLabel('Razão social').fill(rs); await page.getByLabel('Nome fantasia').fill(nf); await page.getByLabel('CNPJ').fill(cnpj)
-      await page.getByLabel('Regime tributário').selectOption(reg)
+      await D().getByLabel('Razão social').fill(rs); await D().getByLabel('Nome fantasia').fill(nf); await D().getByLabel('CNPJ').fill(cnpj)
+      await D().getByLabel('Regime tributário').selectOption(reg)
       await salvar(); await toastTexto('Empresa salva.')
     }
     await page.getByRole('cell', { name: 'Empresa Tres Ltda' }).waitFor()
@@ -59,7 +61,7 @@ const passo = async (nome, fn) => {
   })
   await passo('CNPJ inválido é recusado no formulário', async () => {
     await page.getByRole('button', { name: 'Nova empresa' }).click()
-    await page.getByLabel('Razão social').fill('X'); await page.getByLabel('CNPJ').fill('11222333000182')
+    await D().getByLabel('Razão social').fill('X'); await D().getByLabel('CNPJ').fill('11222333000182')
     await salvar(); await page.getByText('CNPJ inválido.').waitFor()
     await page.getByRole('dialog').getByRole('button', { name: 'Cancelar' }).click()
   })
@@ -68,7 +70,7 @@ const passo = async (nome, fn) => {
     await menu('Clientes')
     for (const [rs, cnpj] of [['Cliente Alfa', '12345678000195'], ['Cliente Beta', 'ABCDEFGH000195']]) {
       await page.getByRole('button', { name: 'Novo cliente' }).click()
-      await page.getByLabel('Razão social').fill(rs); await page.getByLabel('CNPJ').fill(cnpj)
+      await D().getByLabel('Razão social').fill(rs); await D().getByLabel('CNPJ').fill(cnpj)
       await salvar(); await toastTexto('Cliente salvo.')
     }
     await page.getByRole('cell', { name: 'Cliente Beta' }).waitFor()
@@ -76,20 +78,20 @@ const passo = async (nome, fn) => {
   })
   await passo('Cliente duplicado (outra formatação) é recusado', async () => {
     await page.getByRole('button', { name: 'Novo cliente' }).click()
-    await page.getByLabel('Razão social').fill('Dup'); await page.getByLabel('CNPJ').fill('12.345.678/0001-95')
+    await D().getByLabel('Razão social').fill('Dup'); await D().getByLabel('CNPJ').fill('12.345.678/0001-95')
     await salvar(); await page.getByText('Já existe um cadastro com este CNPJ.').waitFor()
     await page.getByRole('dialog').getByRole('button', { name: 'Cancelar' }).click()
   })
 
   const contrato = async (empresa, cliente, desc, valor, extra = {}) => {
     await page.getByRole('button', { name: 'Novo contrato' }).click()
-    await page.getByLabel('Empresa responsável').selectOption({ label: empresa })
-    await page.getByLabel('Cliente *').selectOption({ label: cliente })
-    await page.getByLabel('Descrição do serviço').fill(desc)
-    await page.getByLabel('Valor base').fill(valor)
-    if (extra.per) await page.getByLabel('Periodicidade').selectOption(extra.per)
-    await page.getByLabel('Dia de vencimento').fill(extra.dia ?? '10')
-    await page.getByLabel('Início').fill(extra.inicio ?? '2026-01-15')
+    await D().getByLabel('Empresa responsável').selectOption({ label: empresa })
+    await D().getByLabel('Cliente *').selectOption({ label: cliente })
+    await D().getByLabel('Descrição do serviço').fill(desc)
+    await D().getByLabel('Valor base').fill(valor)
+    if (extra.per) await D().getByLabel('Periodicidade').selectOption(extra.per)
+    await D().getByLabel('Dia de vencimento').fill(extra.dia ?? '10')
+    await D().getByLabel('Início').fill(extra.inicio ?? '2026-01-15')
     await salvar(); await toastTexto('Contrato salvo.')
   }
   await passo('Contratos: mensal, anual e em empresas diferentes para o mesmo cliente', async () => {
@@ -114,7 +116,7 @@ const passo = async (nome, fn) => {
   })
   await passo('Alteração de valor com vigência preserva o histórico', async () => {
     await page.getByRole('button', { name: 'Alterar valor' }).click()
-    await page.getByLabel('Novo valor base').fill('180,00'); await page.getByLabel('Vigente a partir de').fill('2026-12-01'); await page.getByLabel('Motivo').fill('reajuste')
+    await D().getByLabel('Novo valor base').fill('180,00'); await D().getByLabel('Vigente a partir de').fill('2026-12-01'); await D().getByLabel('Motivo').fill('reajuste')
     await page.getByRole('dialog').filter({ hasText: 'Alterar valor do contrato' }).getByRole('button', { name: 'Salvar' }).click()
     await toastTexto('Valor alterado')
     await page.getByRole('dialog').getByRole('cell', { name: 'R$ 180,00' }).waitFor()
@@ -132,16 +134,16 @@ const passo = async (nome, fn) => {
   })
   await passo('Registrar pagamento parcial e depois a quitação', async () => {
     await page.getByRole('row', { name: /Cliente Alfa/ }).filter({ hasText: 'R$ 150,00' }).getByRole('button', { name: 'Pagamento' }).click()
-    await page.getByLabel('Valor recebido').fill('50,00')
+    await D().getByLabel('Valor recebido').fill('50,00')
     await page.getByRole('dialog').getByRole('button', { name: 'Registrar', exact: true }).click()
     await toastTexto('Pagamento registrado.')
     await page.getByRole('row', { name: /Cliente Alfa/ }).filter({ hasText: 'R$ 150,00' }).getByText('Parcialmente paga').waitFor()
     await page.getByRole('row', { name: /Cliente Alfa/ }).filter({ hasText: 'R$ 150,00' }).getByRole('button', { name: 'Pagamento' }).click()
-    if ((await page.getByLabel('Valor recebido').inputValue()) !== '100') throw new Error('saldo sugerido incorreto: ' + (await page.getByLabel('Valor recebido').inputValue()))
-    await page.getByLabel('Valor recebido').fill('100,01')
+    if ((await D().getByLabel('Valor recebido').inputValue()) !== '100') throw new Error('saldo sugerido incorreto: ' + (await D().getByLabel('Valor recebido').inputValue()))
+    await D().getByLabel('Valor recebido').fill('100,01')
     await page.getByRole('dialog').getByRole('button', { name: 'Registrar', exact: true }).click()
     await page.getByText('excede o saldo').waitFor()
-    await page.getByLabel('Valor recebido').fill('100,00')
+    await D().getByLabel('Valor recebido').fill('100,00')
     await page.getByRole('dialog').getByRole('button', { name: 'Registrar', exact: true }).click()
     await page.getByRole('row', { name: /Cliente Alfa/ }).filter({ hasText: 'R$ 150,00' }).getByText('Paga', { exact: true }).waitFor()
   })
@@ -149,18 +151,18 @@ const passo = async (nome, fn) => {
   await passo('Venda com múltiplos itens (total calculado) e devolução', async () => {
     await menu('Vendas')
     await page.getByRole('button', { name: 'Nova venda' }).click()
-    await page.getByLabel('Empresa vendedora').selectOption({ label: 'Um' })
-    await page.getByLabel('Nome do comprador').fill('Consumidor final')
-    await page.getByLabel('Situação').selectOption('faturada')
-    await page.getByLabel('Descrição').first().fill('Cabo'); await page.getByLabel('Quantidade').first().fill('2'); await page.getByLabel('Valor unitário').first().fill('10,50'); await page.getByLabel('Desconto').first().fill('1,00')
+    await D().getByLabel('Empresa vendedora').selectOption({ label: 'Um' })
+    await D().getByLabel('Nome do comprador').fill('Consumidor final')
+    await D().getByLabel('Situação').selectOption('faturada')
+    await D().getByLabel('Descrição').first().fill('Cabo'); await D().getByLabel('Quantidade').first().fill('2'); await D().getByLabel('Valor unitário').first().fill('10,50'); await D().getByLabel('Desconto').first().fill('1,00')
     await page.getByRole('button', { name: '+ Adicionar item' }).click()
-    await page.getByLabel('Descrição').nth(1).fill('Fonte'); await page.getByLabel('Quantidade').nth(1).fill('3'); await page.getByLabel('Valor unitário').nth(1).fill('33,33')
+    await D().getByLabel('Descrição').nth(1).fill('Fonte'); await D().getByLabel('Quantidade').nth(1).fill('3'); await D().getByLabel('Valor unitário').nth(1).fill('33,33')
     await page.getByText('Total: R$ 119,99').waitFor()
     await page.getByRole('dialog').getByRole('button', { name: 'Registrar venda' }).click(); await toastTexto('Venda registrada.')
     await page.getByRole('cell', { name: 'Consumidor final' }).click()
     await page.getByRole('dialog').getByText('R$ 119,99').first().waitFor()
     await page.getByRole('button', { name: 'Registrar', exact: true }).click()
-    await page.getByLabel('Valor (R$)').fill('19,99'); await page.getByRole('dialog').filter({ hasText: 'Devolução ou estorno' }).getByRole('button', { name: 'Registrar' }).click()
+    await D().getByLabel('Valor (R$)').fill('19,99'); await page.getByRole('dialog').filter({ hasText: 'Devolução ou estorno' }).getByRole('button', { name: 'Registrar' }).click()
     await page.getByRole('dialog').first().getByText('R$ 100,00').first().waitFor()
     await shot('07-venda')
     await page.keyboard.press('Escape')
