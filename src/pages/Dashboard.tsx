@@ -1,18 +1,19 @@
 import { useState } from 'react'
 import { Link } from 'react-router-dom'
 import { useQuery } from '@tanstack/react-query'
-import { Bar, BarChart, CartesianGrid, Legend, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts'
+import { Bar, BarChart, CartesianGrid, Legend, Line, LineChart, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts'
 import { supabase } from '@/lib/supabase'
 import { ok, useCategorias } from '@/lib/dados'
 import { useEmpresa } from '@/lib/empresa-context'
-import { COR_TIPO, TIPOS, filtrar, total, useFaturamentoAno, useIndicadoresCobranca, useLimites, useResumoContratos } from '@/lib/faturamento'
+import { filtrar, total, useFaturamentoAno, useIndicadoresCobranca, useLimites, useResumoContratos } from '@/lib/faturamento'
 import { DEFINICOES } from '@/lib/definicoes'
 import { moeda, percentual, somar } from '@/lib/money'
 import { competencia, data, MESES, primeiroDia } from '@/lib/datas'
 import { formatarCnpj } from '@/lib/cnpj'
+import type Decimal from 'decimal.js'
 import type { CobrancaView, StatusExibicao } from '@/lib/types'
-import { Badge, Carregando, ErroBox, PageHeader, Secao, StatCard, Tabela } from '@/components/ui'
-import { SeletorAno, SeletorMes } from '@/components/FiltroPeriodo'
+import { Badge, Carregando, ErroBox, KpiCard, MesesPills, PageHeader, Secao, StatCard, Tabela } from '@/components/ui'
+import { SeletorAno } from '@/components/FiltroPeriodo'
 
 const NIVEL_COR: Record<string, string> = { ok: 'bg-ok', atencao: 'bg-warn', critico: 'bg-bad', ultrapassado: 'bg-bad' }
 
@@ -51,9 +52,15 @@ export default function Dashboard() {
   const contratado = somar((contratos.data ?? []).map((c) => c.mensalidades_contratadas))
   const nContratos = (contratos.data ?? []).reduce((a, c) => a + Number(c.contratos_ativos), 0)
 
+  const anterior = mes > 1 ? filtrar(linhas, { ...fc, mes: mes - 1 }) : null
+  const variacao = (atual: Decimal, tipo?: string): number | null => {
+    if (!anterior) return null
+    const base = tipo ? porTipo(anterior, tipo) : total(anterior)
+    return base.isZero() ? null : atual.minus(base).div(base).times(100).toNumber()
+  }
   const evolucao = MESES.map((m, i) => {
     const l = filtrar(linhas, { ...fc, mes: i + 1 })
-    return { mes: m.slice(0, 3), mensalidade: porTipo(l, 'mensalidade').toNumber(), adicional: porTipo(l, 'adicional').toNumber(), venda: porTipo(l, 'venda').toNumber() }
+    return { mes: m.slice(0, 3), total: total(l).toNumber(), mensalidade: porTipo(l, 'mensalidade').toNumber(), adicional: porTipo(l, 'adicional').toNumber(), venda: porTipo(l, 'venda').toNumber() }
   })
   const porEmpresa = (empresaId ? empresas.filter((e) => e.id === empresaId) : empresas).map((e) => ({
     id: e.id, nome: e.nome_fantasia || e.razao_social,
@@ -65,15 +72,20 @@ export default function Dashboard() {
   return (
     <>
       <PageHeader titulo="Dashboard Master" subtitulo={empresaId ? `Empresa: ${nomeEmpresa(empresaId)}` : 'Visão consolidada das empresas, sem duplicidade'} />
-      <div className="mb-4 flex flex-wrap items-center gap-2">
-        <SeletorAno valor={ano} onChange={setAno} /><SeletorMes valor={mes} onChange={setMes} />
-        <select className="input w-auto" value={categoriaId} onChange={(e) => setCategoriaId(e.target.value)} aria-label="Categoria de receita">
-          <option value="">Todas as categorias</option>{(categorias.data ?? []).map((c) => <option key={c.id} value={c.id}>{c.nome}</option>)}
-        </select>
-        <select className="input w-auto" value={situacao} onChange={(e) => setSituacao(e.target.value as StatusExibicao | '')} aria-label="Situação da cobrança (lista de vencimentos)">
-          <option value="">Situação da cobrança: padrão</option>
-          {['prevista', 'pendente', 'parcialmente_paga', 'paga', 'vencida', 'cancelada'].map((s) => <option key={s} value={s}>{s.replace('_', ' ')}</option>)}
-        </select>
+      <div className="card mb-4 space-y-3">
+        <div className="text-sm text-sub">Filtrar por mês:</div>
+        <MesesPills valor={mes} onChange={setMes} nomes={MESES} />
+        <div className="flex flex-wrap items-center gap-2">
+          <span className="text-sm text-sub">Ano:</span>
+          <SeletorAno valor={ano} onChange={setAno} />
+          <select className="input w-auto" value={categoriaId} onChange={(e) => setCategoriaId(e.target.value)} aria-label="Categoria de receita">
+            <option value="">Todas as categorias</option>{(categorias.data ?? []).map((c) => <option key={c.id} value={c.id}>{c.nome}</option>)}
+          </select>
+          <select className="input w-auto" value={situacao} onChange={(e) => setSituacao(e.target.value as StatusExibicao | '')} aria-label="Situação da cobrança (lista de vencimentos)">
+            <option value="">Situação da cobrança: padrão</option>
+            {['prevista', 'pendente', 'parcialmente_paga', 'paga', 'vencida', 'cancelada'].map((s) => <option key={s} value={s}>{s.replace('_', ' ')}</option>)}
+          </select>
+        </div>
       </div>
 
       {alertas.length > 0 && (
@@ -87,13 +99,13 @@ export default function Dashboard() {
       )}
 
       <Secao titulo={`Faturamento — ${MESES[mes - 1]} de ${ano}`}>
-        <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
-          <StatCard titulo="Faturamento do mês" valor={moeda(total(doMes))} hint={DEFINICOES.faturamentoMes} />
-          <StatCard titulo="Acumulado no ano" valor={moeda(total(doAno))} detalhe={`jan a ${MESES[mes - 1].slice(0, 3).toLowerCase()}`} hint={DEFINICOES.faturamentoAno} />
-          <StatCard titulo="Mensalidades contratadas" valor={moeda(contratado)} detalhe={`${nContratos} contrato(s) ativo(s)`} hint={DEFINICOES.mensalidadesContratadas} />
-          <StatCard titulo="Receita de mensalidades" valor={moeda(porTipo(doMes, 'mensalidade'))} hint={DEFINICOES.mensalidades} />
-          <StatCard titulo="Receita de adicionais" valor={moeda(porTipo(doMes, 'adicional'))} hint={DEFINICOES.adicionais} />
-          <StatCard titulo="Receita de vendas" valor={moeda(porTipo(doMes, 'venda'))} hint={DEFINICOES.vendas} />
+        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6">
+          <KpiCard icone="dinheiro" titulo="Faturamento do mês" valor={moeda(total(doMes))} variacao={variacao(total(doMes))} hint={DEFINICOES.faturamentoMes} />
+          <KpiCard icone="grafico" titulo="Acumulado no ano" valor={moeda(total(doAno))} detalhe={`jan a ${MESES[mes - 1].slice(0, 3).toLowerCase()}`} hint={DEFINICOES.faturamentoAno} />
+          <KpiCard icone="contrato" titulo="Mensalidades contratadas" valor={moeda(contratado)} detalhe={`${nContratos} contrato(s) ativo(s)`} hint={DEFINICOES.mensalidadesContratadas} />
+          <KpiCard icone="contrato" titulo="Receita de mensalidades" valor={moeda(porTipo(doMes, 'mensalidade'))} variacao={variacao(porTipo(doMes, 'mensalidade'), 'mensalidade')} hint={DEFINICOES.mensalidades} />
+          <KpiCard icone="pacote" titulo="Receita de adicionais" valor={moeda(porTipo(doMes, 'adicional'))} variacao={variacao(porTipo(doMes, 'adicional'), 'adicional')} hint={DEFINICOES.adicionais} />
+          <KpiCard icone="carrinho" titulo="Receita de vendas" valor={moeda(porTipo(doMes, 'venda'))} variacao={variacao(porTipo(doMes, 'venda'), 'venda')} hint={DEFINICOES.vendas} />
         </div>
       </Secao>
 
@@ -134,19 +146,19 @@ export default function Dashboard() {
 
       <div className="mb-5 grid grid-cols-1 gap-4 xl:grid-cols-2">
         <div className="card text-sub">
-          <h3 className="mb-2 text-sm font-semibold text-fg">Evolução mensal do faturamento — {ano}</h3>
-          <ResponsiveContainer width="100%" height={260}>
-            <BarChart data={evolucao}><CartesianGrid strokeDasharray="3 3" stroke="currentColor" opacity={0.2} /><XAxis dataKey="mes" tick={{ fill: 'currentColor', fontSize: 12 }} /><YAxis tick={{ fill: 'currentColor', fontSize: 12 }} width={70} tickFormatter={(v: number) => moeda(v).replace(',00', '')} />
-              <Tooltip formatter={(v) => moeda(Number(v))} /><Legend />
-              <Bar dataKey="mensalidade" name="Mensalidades" stackId="a" fill={COR_TIPO.mensalidade} /><Bar dataKey="adicional" name="Adicionais" stackId="a" fill={COR_TIPO.adicional} /><Bar dataKey="venda" name="Vendas" stackId="a" fill={COR_TIPO.venda} /></BarChart>
+          <h3 className="mb-2 text-lg font-semibold text-fg">Faturamento mensal — {ano}</h3>
+          <ResponsiveContainer width="100%" height={280}>
+            <LineChart data={evolucao}><CartesianGrid strokeDasharray="3 3" stroke="currentColor" opacity={0.2} vertical={false} /><XAxis dataKey="mes" tick={{ fill: 'currentColor', fontSize: 12 }} /><YAxis tick={{ fill: 'currentColor', fontSize: 12 }} width={80} tickFormatter={(v: number) => moeda(v).replace(',00', '')} />
+              <Tooltip formatter={(v) => moeda(Number(v))} />
+              <Line type="monotone" dataKey="total" name="Faturamento" stroke="#6366f1" strokeWidth={2.5} dot={{ r: 3, fill: '#4f46e5' }} activeDot={{ r: 5 }} /></LineChart>
           </ResponsiveContainer>
         </div>
         <div className="card text-sub">
-          <h3 className="mb-2 text-sm font-semibold text-fg">Comparação entre CNPJs</h3>
+          <h3 className="mb-2 text-lg font-semibold text-fg">Comparação entre CNPJs</h3>
           <ResponsiveContainer width="100%" height={260}>
-            <BarChart data={porEmpresa}><CartesianGrid strokeDasharray="3 3" stroke="currentColor" opacity={0.2} /><XAxis dataKey="nome" tick={{ fill: 'currentColor', fontSize: 12 }} /><YAxis tick={{ fill: 'currentColor', fontSize: 12 }} width={70} tickFormatter={(v: number) => moeda(v).replace(',00', '')} />
+            <BarChart data={porEmpresa}><defs><linearGradient id="gradMes" x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stopColor="#3b82f6" /><stop offset="100%" stopColor="#bfdbfe" /></linearGradient><linearGradient id="gradAno" x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stopColor="#8b5cf6" /><stop offset="100%" stopColor="#ddd6fe" /></linearGradient></defs><CartesianGrid strokeDasharray="3 3" stroke="currentColor" opacity={0.2} vertical={false} /><XAxis dataKey="nome" tick={{ fill: 'currentColor', fontSize: 12 }} /><YAxis tick={{ fill: 'currentColor', fontSize: 12 }} width={70} tickFormatter={(v: number) => moeda(v).replace(',00', '')} />
               <Tooltip formatter={(v) => moeda(Number(v))} /><Legend />
-              <Bar dataKey="mes" name={`${MESES[mes - 1]}`} fill="#2563eb" /><Bar dataKey="ano" name="Acumulado no ano" fill="#7c3aed" /></BarChart>
+              <Bar dataKey="mes" name={`${MESES[mes - 1]}`} fill="url(#gradMes)" radius={[6, 6, 0, 0]} /><Bar dataKey="ano" name="Acumulado no ano" fill="url(#gradAno)" radius={[6, 6, 0, 0]} /></BarChart>
           </ResponsiveContainer>
         </div>
         <div className="card text-sub">

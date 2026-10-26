@@ -4,24 +4,25 @@
 
 :root {
   --bg: 245 246 248; --surface: 255 255 255; --muted: 240 242 245; --line: 222 226 232;
-  --fg: 24 28 36; --sub: 96 106 122; --brand: 30 90 168; --brand-fg: 255 255 255;
+  --fg: 24 28 36; --sub: 96 106 122; --brand: 79 70 229; --brand-fg: 255 255 255;
   --ok: 22 130 74; --warn: 190 110 10; --bad: 192 40 40;
 }
 @media (prefers-color-scheme: dark) {
   :root {
     --bg: 18 20 25; --surface: 27 30 37; --muted: 36 40 49; --line: 52 58 70;
-    --fg: 232 235 240; --sub: 154 163 178; --brand: 96 156 232; --brand-fg: 12 16 24;
+    --fg: 232 235 240; --sub: 154 163 178; --brand: 129 140 248; --brand-fg: 15 15 40;
     --ok: 74 200 130; --warn: 240 170 70; --bad: 240 110 110;
   }
 }
 body { @apply bg-bg text-fg antialiased; font-family: system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif; }
 @layer components {
+  .sidebar-grad { background: linear-gradient(180deg, #4f46e5 0%, #3730a3 100%); color: #fff; }
 .input { @apply w-full rounded-md border border-line bg-surface px-3 py-2 text-sm outline-none focus:border-brand focus:ring-1 focus:ring-brand; }
 .btn { @apply inline-flex items-center justify-center gap-1 rounded-md px-3 py-2 text-sm font-medium disabled:opacity-50; }
 .btn-primary { @apply btn bg-brand text-brand-fg hover:opacity-90; }
 .btn-ghost { @apply btn border border-line bg-surface hover:bg-muted; }
 .btn-danger { @apply btn bg-bad text-white hover:opacity-90; }
-.card { @apply rounded-lg border border-line bg-surface p-4; }
+.card { @apply rounded-lg border border-line bg-surface p-4 shadow-sm; }
 .th { @apply px-3 py-2 text-left text-xs font-semibold uppercase tracking-wide text-sub; }
 .td { @apply px-3 py-2 text-sm; }
 }

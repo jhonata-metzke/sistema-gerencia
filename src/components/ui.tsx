@@ -61,6 +61,46 @@ export function StatCard({ titulo, valor, detalhe, hint, tom }: { titulo: string
   )
 }
 
+export type Icone = 'dinheiro' | 'grafico' | 'contrato' | 'pacote' | 'carrinho'
+const ICONES: Record<Icone, string> = {
+  dinheiro: 'M12 2v20M17 6.5C17 4.6 14.8 3.5 12 3.5S7 4.6 7 6.5 9.2 9.5 12 10.5s5 2 5 4-2.2 3-5 3-5-1.1-5-3',
+  grafico: 'M3 3v18h18M7 15l4-4 3 3 5-6',
+  contrato: 'M7 3h8l4 4v14H7zM15 3v4h4M10 12h6M10 16h6',
+  pacote: 'M3 8l9-5 9 5v8l-9 5-9-5zM3 8l9 5 9-5M12 13v8',
+  carrinho: 'M3 4h2l2.4 11h10l2-8H6.5M9 20h.01M17 20h.01',
+}
+
+/** Cartão de indicador com ícone e variação em relação ao período anterior (null = sem base de comparação). */
+export function KpiCard({ titulo, valor, icone, variacao, detalhe, hint }: { titulo: string; valor: string; icone: Icone; variacao?: number | null; detalhe?: string; hint?: string }) {
+  const tem = variacao !== undefined && variacao !== null && Number.isFinite(variacao)
+  const cor = !tem || variacao === 0 ? 'bg-muted text-sub' : (variacao as number) > 0 ? 'bg-ok/15 text-ok' : 'bg-bad/15 text-bad'
+  const txt = tem ? `${(variacao as number) > 0 ? '+' : ''}${Math.round(variacao as number)}%` : '—'
+  return (
+    <div className="card" title={hint}>
+      <div className="flex items-start justify-between">
+        <span className="flex h-10 w-10 items-center justify-center rounded-full bg-brand/10 text-brand">
+          <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d={ICONES[icone]} /></svg>
+        </span>
+        {variacao !== undefined && <span className={`rounded-full px-2 py-0.5 text-xs font-medium ${cor}`} title="Variação em relação ao mês anterior">{txt}</span>}
+      </div>
+      <div className="mt-3 text-sm text-sub">{titulo}</div>
+      <div className="mt-1 text-2xl font-bold tabular-nums">{valor}</div>
+      {detalhe && <div className="mt-1 text-xs text-sub">{detalhe}</div>}
+    </div>
+  )
+}
+
+export function MesesPills({ valor, onChange, nomes }: { valor: number; onChange: (m: number) => void; nomes: string[] }) {
+  return (
+    <div className="flex flex-wrap gap-2" role="group" aria-label="Filtrar por mês">
+      {nomes.map((n, i) => (
+        <button key={n} type="button" aria-pressed={valor === i + 1} onClick={() => onChange(i + 1)}
+          className={`rounded-md px-3 py-1.5 text-xs font-medium ${valor === i + 1 ? 'bg-ok text-white' : 'bg-muted text-fg hover:bg-line'}`}>{n}</button>
+      ))}
+    </div>
+  )
+}
+
 const BADGE: Record<string, string> = {
   paga: 'bg-ok/15 text-ok', recebida: 'bg-ok/15 text-ok', ativo: 'bg-ok/15 text-ok', ok: 'bg-ok/15 text-ok',
   vencida: 'bg-bad/15 text-bad', cancelada: 'bg-bad/15 text-bad', ultrapassado: 'bg-bad/15 text-bad', critico: 'bg-bad/15 text-bad', encerrado: 'bg-muted text-sub', inativo: 'bg-muted text-sub',

@@ -16,15 +16,15 @@ export default function Layout() {
 
   return (
     <div className="min-h-screen lg:flex">
-      <aside className={`${aberto ? 'block' : 'hidden'} fixed inset-0 z-30 bg-surface p-3 lg:static lg:block lg:w-60 lg:shrink-0 lg:border-r lg:border-line`}>
+      <aside className={`${aberto ? 'block' : 'hidden'} sidebar-grad fixed inset-0 z-30 p-3 lg:static lg:block lg:w-60 lg:shrink-0`}>
         <div className="mb-3 flex items-center justify-between px-2">
-          <span className="font-semibold">Gestão Comercial</span>
-          <button className="btn-ghost px-2 py-1 lg:hidden" onClick={() => setAberto(false)} aria-label="Fechar menu">✕</button>
+          <span className="text-lg font-bold">Gestão Comercial</span>
+          <button className="rounded-md border border-white/30 px-2 py-1 text-sm lg:hidden" onClick={() => setAberto(false)} aria-label="Fechar menu">✕</button>
         </div>
         <nav className="space-y-0.5" aria-label="Menu principal">
           {MENU.map(([to, rotulo]) => (
             <NavLink key={to} to={to} end={to === '/'} onClick={() => setAberto(false)}
-              className={({ isActive }) => `block rounded-md px-3 py-2 text-sm ${isActive ? 'bg-brand text-brand-fg' : 'hover:bg-muted'}`}>
+              className={({ isActive }) => `block rounded-md px-3 py-2 text-sm ${isActive ? 'bg-black/25 font-medium' : 'text-white/85 hover:bg-white/10'}`}>
               {rotulo}
             </NavLink>
           ))}
