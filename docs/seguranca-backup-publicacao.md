@@ -17,3 +17,10 @@
 
 ## Publicação
 Sem publicação automática. Fluxo: revisão das migrations → aplicar no backend → conferir sincronização com o GitHub → validar no Lovable → **autorização explícita** → publicar → testes pós-publicação (login, empresa, contrato, geração de cobrança, relatório).
+
+## Hospedagem atual: GitHub Pages + backend Lovable Cloud
+- O front-end é estático e é publicado por `.github/workflows/pages.yml` em `https://jhonata-metzke.github.io/sistema-gerencia/`, apontando para o banco já criado no Lovable Cloud (projeto "Gestão Comercial").
+- Ativação (uma vez): repositório → Settings → Pages → Source: **GitHub Actions**. Depois rode o workflow (Actions → "Publicar no GitHub Pages" → Run workflow).
+- A URL e a chave **publishable** do backend estão no workflow de propósito (são públicas por desenho; a proteção dos dados é a RLS). Nunca coloque chaves secretas (service role) no repositório.
+- **Logo após o primeiro deploy, crie sua conta**: o primeiro usuário vira proprietário. Em seguida, desative novos cadastros no backend.
+- O e-mail de confirmação do cadastro pode apontar para a URL do projeto Lovable (Site URL do backend), não para o Pages; confirmar por lá e entrar pelo Pages funciona.

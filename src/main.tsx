@@ -13,7 +13,7 @@ const qc = new QueryClient({ defaultOptions: { queries: { staleTime: 15_000, ref
 createRoot(document.getElementById('root')!).render(
   <StrictMode>
     <QueryClientProvider client={qc}>
-      <BrowserRouter>
+      <BrowserRouter basename={import.meta.env.BASE_URL.replace(/\/$/, '') || undefined}>
         <AuthProvider>
           <EmpresaProvider>
             <ToastProvider>
