@@ -194,6 +194,7 @@ const passo = async (nome, fn) => {
   })
   await passo('Relatório de faturamento consolidado exporta CSV', async () => {
     await menu('Relatórios')
+    await page.locator('header select').selectOption('')
     await page.getByLabel('Relatório').selectOption({ label: 'Faturamento consolidado' })
     await page.getByRole('button', { name: 'Gerar relatório' }).click()
     await page.getByRole('cell', { name: 'TOTAL' }).waitFor()
