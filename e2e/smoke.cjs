@@ -17,7 +17,7 @@ fs.mkdirSync(OUT, { recursive: true })
 
 const resultados = []
 const passo = async (nome, fn) => {
-  try { await globalThis.__fechar?.(); await fn(); resultados.push(['PASSOU', nome]); console.log('PASSOU', nome) } catch (e) { const m = String(e.message).split('\n')[0]; resultados.push(['FALHOU', nome + ' :: ' + m]); console.log('FALHOU', nome, '::', m) }
+  try { await globalThis.__fechar?.(); await fn(); resultados.push(['PASSOU', nome]); console.log('PASSOU', nome) } catch (e) { const m = String(e.message).split('\n')[0]; try { await globalThis.__falha?.(nome) } catch {} resultados.push(['FALHOU', nome + ' :: ' + m]); console.log('FALHOU', nome, '::', m) }
 }
 
 ;(async () => {
@@ -35,6 +35,7 @@ const passo = async (nome, fn) => {
   const erros = []
   page.on('pageerror', (e) => erros.push('pageerror: ' + e.message))
   page.on('console', (m) => { if (m.type() === 'error' && !m.text().includes('Failed to load resource')) erros.push('console: ' + m.text()) })
+  globalThis.__falha = (n) => page.screenshot({ path: `${OUT}/FALHA-${n.replace(/[^a-z0-9]+/gi, '_').slice(0, 40)}.png`, fullPage: true })
   const D = () => page.getByRole('dialog').last()
   const shot = (n) => page.screenshot({ path: `${OUT}/${n}.png`, fullPage: true })
   const menu = (nome) => page.getByRole('navigation').getByRole('link', { name: nome, exact: true }).click()
@@ -91,7 +92,7 @@ const passo = async (nome, fn) => {
     await D().getByLabel('Valor base').fill(valor)
     if (extra.per) await D().getByLabel('Periodicidade').selectOption(extra.per)
     await D().getByLabel('Dia de vencimento').fill(extra.dia ?? '10')
-    await D().getByLabel('Início').fill(extra.inicio ?? '2026-01-15')
+    await D().getByLabel('Início *').fill(extra.inicio ?? '2026-01-15')
     await salvar(); await toastTexto('Contrato salvo.')
   }
   await passo('Contratos: mensal, anual e em empresas diferentes para o mesmo cliente', async () => {
@@ -115,6 +116,7 @@ const passo = async (nome, fn) => {
     await shot('05-contrato-detalhe')
   })
   await passo('Alteração de valor com vigência preserva o histórico', async () => {
+    await page.getByRole('cell', { name: 'Sistema de ponto' }).click()
     await page.getByRole('button', { name: 'Alterar valor' }).click()
     await D().getByLabel('Novo valor base').fill('180,00'); await D().getByLabel('Vigente a partir de').fill('2026-12-01'); await D().getByLabel('Motivo').fill('reajuste')
     await page.getByRole('dialog').filter({ hasText: 'Alterar valor do contrato' }).getByRole('button', { name: 'Salvar' }).click()
@@ -161,8 +163,8 @@ const passo = async (nome, fn) => {
     await page.getByRole('dialog').getByRole('button', { name: 'Registrar venda' }).click(); await toastTexto('Venda registrada.')
     await page.getByRole('cell', { name: 'Consumidor final' }).click()
     await page.getByRole('dialog').getByText('R$ 119,99').first().waitFor()
-    await page.getByRole('button', { name: 'Registrar', exact: true }).click()
-    await D().getByLabel('Valor (R$)').fill('19,99'); await page.getByRole('dialog').filter({ hasText: 'Devolução ou estorno' }).getByRole('button', { name: 'Registrar' }).click()
+    await page.getByRole('dialog').first().getByRole('button', { name: 'Registrar', exact: true }).click()
+    await D().getByLabel('Valor (R$)').fill('19,99'); await D().getByRole('button', { name: 'Registrar', exact: true }).click()
     await page.getByRole('dialog').first().getByText('R$ 100,00').first().waitFor()
     await shot('07-venda')
     await page.keyboard.press('Escape')
@@ -183,9 +185,9 @@ const passo = async (nome, fn) => {
   })
   await passo('Limite: configurar parâmetros individuais e ver alerta', async () => {
     await menu('Limite MEI')
-    await page.getByLabel('Limite de referência').fill('400,00')
+    await page.getByLabel('Limite de referência').fill('300,00')
     await page.getByRole('button', { name: 'Salvar parâmetros' }).click(); await toastTexto('Parâmetros salvos')
-    await page.getByText('83,75%').first().waitFor({ timeout: 8000 })
+    await page.getByText('83,33%').first().waitFor({ timeout: 8000 })
     await page.getByText('Atenção').first().waitFor()
     await shot('10-limite')
   })

@@ -39,7 +39,7 @@ create view public.v_receitas with (security_invoker = true) as
   select 'ajuste:' || j.id, v.empresa_id, v.cliente_id, 'venda',
          coalesce(v.categoria_id, public.categoria_padrao('venda')),
          date_trunc('month', j.data)::date, j.data, -j.valor,
-         'venda_ajustes', j.id, initcap(j.tipo) || ' de venda'
+         'venda_ajustes', j.id, case j.tipo when 'devolucao' then 'Devolução de venda' else 'Estorno de venda' end
   from public.venda_ajustes j
   join public.vendas v on v.id = j.venda_id
   where v.status in ('faturada', 'recebida');
