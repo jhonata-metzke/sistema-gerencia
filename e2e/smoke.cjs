@@ -185,6 +185,7 @@ const passo = async (nome, fn) => {
   })
   await passo('Limite: configurar parâmetros individuais e ver alerta', async () => {
     await menu('Limite MEI')
+    await page.locator('main select[aria-label="Empresa"]').selectOption({ label: 'Um' })
     await page.getByLabel('Limite de referência').fill('300,00')
     await page.getByRole('button', { name: 'Salvar parâmetros' }).click(); await toastTexto('Parâmetros salvos')
     await page.getByText('83,33%').first().waitFor({ timeout: 8000 })
