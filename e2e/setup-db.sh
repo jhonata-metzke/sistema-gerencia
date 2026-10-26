@@ -4,6 +4,7 @@ set -euo pipefail
 cd "$(dirname "$0")/.."
 export PGPASSWORD=postgres
 P="psql -X -q -v ON_ERROR_STOP=1 -U postgres -h localhost"
+$P -d postgres -c "select pg_terminate_backend(pid) from pg_stat_activity where datname = 'sg_e2e' and pid <> pg_backend_pid()" >/dev/null
 $P -d postgres -c "drop database if exists sg_e2e" -c "create database sg_e2e"
 $P -d sg_e2e -f supabase/tests/00_stub_supabase.sql
 for f in supabase/migrations/*.sql; do $P -d sg_e2e -f "$f"; done
