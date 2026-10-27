@@ -2,7 +2,9 @@ name: Publicar no GitHub Pages
 
 on:
   push:
-    branches: [claude/loving-edison-5gj3dg, main]
+    # O Pages só publica a partir da branch padrão do repositório (hoje: claude/loving-edison-5gj3dg).
+    # Se a branch padrão for trocada para main, troque a linha abaixo para: branches: [main]
+    branches: [claude/loving-edison-5gj3dg]
   workflow_dispatch:
 
 permissions:

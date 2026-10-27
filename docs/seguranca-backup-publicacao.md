@@ -24,3 +24,7 @@ Sem publicação automática. Fluxo: revisão das migrations → aplicar no back
 - A URL e a chave **publishable** do backend estão no workflow de propósito (são públicas por desenho; a proteção dos dados é a RLS). Nunca coloque chaves secretas (service role) no repositório.
 - **Logo após o primeiro deploy, crie sua conta**: o primeiro usuário vira proprietário. Em seguida, desative novos cadastros no backend.
 - O e-mail de confirmação do cadastro pode apontar para a URL do projeto Lovable (Site URL do backend), não para o Pages; confirmar por lá e entrar pelo Pages funciona.
+
+## Branches e publicação
+- O repositório tem `main` e `claude/loving-edison-5gj3dg` com o mesmo código. A branch padrão do GitHub ainda é a segunda.
+- O GitHub Pages só publica a partir da branch padrão; por isso o workflow dispara apenas nela. Ao trocar a padrão para `main` (Settings → Branches), altere `branches:` em `.github/workflows/pages.yml` para `[main]`.
