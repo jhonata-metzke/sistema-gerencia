@@ -26,5 +26,5 @@ Sem publicação automática. Fluxo: revisão das migrations → aplicar no back
 - O e-mail de confirmação do cadastro pode apontar para a URL do projeto Lovable (Site URL do backend), não para o Pages; confirmar por lá e entrar pelo Pages funciona.
 
 ## Branches e publicação
-- O repositório tem `main` e `claude/loving-edison-5gj3dg` com o mesmo código. A branch padrão do GitHub ainda é a segunda.
-- O GitHub Pages só publica a partir da branch padrão; por isso o workflow dispara apenas nela. Ao trocar a padrão para `main` (Settings → Branches), altere `branches:` em `.github/workflows/pages.yml` para `[main]`.
+- A branch padrão do repositório é `main`, e o workflow do GitHub Pages dispara nela. O Pages só publica a partir da branch padrão.
+- A branch `claude/loving-edison-5gj3dg` foi mantida com o mesmo código, só como histórico do trabalho feito.
