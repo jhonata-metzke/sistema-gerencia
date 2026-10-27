@@ -47,7 +47,7 @@ export function PageHeader({ titulo, subtitulo, acoes }: { titulo: string; subti
   )
 }
 
-export function StatCard({ titulo, valor, detalhe, hint, tom }: { titulo: string; valor: string; detalhe?: string; hint?: string; tom?: 'ok' | 'warn' | 'bad' }) {
+export function StatCard({ titulo, valor, detalhe, hint, tom }: { titulo: string; valor: string; detalhe?: string | undefined; hint?: string | undefined; tom?: 'ok' | 'warn' | 'bad' | undefined }) {
   const cor = tom === 'bad' ? 'text-bad' : tom === 'warn' ? 'text-warn' : tom === 'ok' ? 'text-ok' : ''
   return (
     <div className="card" title={hint}>
@@ -71,7 +71,7 @@ const ICONES: Record<Icone, string> = {
 }
 
 /** Cartão de indicador com ícone e variação em relação ao período anterior (null = sem base de comparação). */
-export function KpiCard({ titulo, valor, icone, variacao, detalhe, hint }: { titulo: string; valor: string; icone: Icone; variacao?: number | null; detalhe?: string; hint?: string }) {
+export function KpiCard({ titulo, valor, icone, variacao, detalhe, hint }: { titulo: string; valor: string; icone: Icone; variacao?: number | null | undefined; detalhe?: string | undefined; hint?: string | undefined }) {
   const tem = variacao !== undefined && variacao !== null && Number.isFinite(variacao)
   const cor = !tem || variacao === 0 ? 'bg-muted text-sub' : (variacao as number) > 0 ? 'bg-ok/15 text-ok' : 'bg-bad/15 text-bad'
   const txt = tem ? `${(variacao as number) > 0 ? '+' : ''}${Math.round(variacao as number)}%` : '—'
@@ -126,9 +126,9 @@ export function ErroBox({ erro }: { erro: unknown }) {
 }
 
 // ---------- Tabela ----------
-export interface Coluna<T> { titulo: string; render: (l: T) => ReactNode; alinhar?: 'right'; className?: string }
+export interface Coluna<T> { titulo: string; render: (l: T) => ReactNode; alinhar?: 'right' | undefined; className?: string | undefined }
 export function Tabela<T>({ colunas, linhas, chave, aoClicar, vazio = 'Nenhum registro encontrado.' }: {
-  colunas: Coluna<T>[]; linhas: T[]; chave: (l: T) => string; aoClicar?: (l: T) => void; vazio?: string
+  colunas: Coluna<T>[]; linhas: T[]; chave: (l: T) => string; aoClicar?: ((l: T) => void) | undefined; vazio?: string | undefined
 }) {
   if (!linhas.length) return <div className="card"><Vazio texto={vazio} /></div>
   return (

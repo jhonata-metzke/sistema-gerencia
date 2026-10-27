@@ -50,7 +50,7 @@ export function useResumoContratos(empresaId: string | null) {
   })
 }
 
-export interface Filtro { mes?: number; mesAte?: number; categoriaId?: string; tipo?: string; empresaId?: string }
+export interface Filtro { mes?: number | undefined; mesAte?: number | undefined; categoriaId?: string | undefined; tipo?: string | undefined; empresaId?: string | undefined }
 
 export function filtrar(linhas: FaturamentoMensal[], f: Filtro) {
   return linhas.filter((l) =>

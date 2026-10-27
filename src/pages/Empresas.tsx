@@ -42,7 +42,7 @@ export default function Empresas() {
   )
 }
 
-function EmpresaDetalhe({ empresa, onClose, onEditar }: { empresa: Empresa; onClose: () => void; onEditar?: () => void }) {
+function EmpresaDetalhe({ empresa, onClose, onEditar }: { empresa: Empresa; onClose: () => void; onEditar?: (() => void) | undefined }) {
   const [ano, setAno] = useState(new Date().getFullYear())
   const fat = useQuery({
     queryKey: ['fat-empresa', empresa.id, ano],

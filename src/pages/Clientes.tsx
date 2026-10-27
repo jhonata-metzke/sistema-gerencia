@@ -51,7 +51,7 @@ export default function Clientes() {
   )
 }
 
-function ClienteDetalhe({ cliente, onClose, onEditar }: { cliente: Cliente; onClose: () => void; onEditar?: () => void }) {
+function ClienteDetalhe({ cliente, onClose, onEditar }: { cliente: Cliente; onClose: () => void; onEditar?: (() => void) | undefined }) {
   const { nomeEmpresa } = useEmpresa()
   const { isOwner } = useAuth()
   const id = cliente.id
