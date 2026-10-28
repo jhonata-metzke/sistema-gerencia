@@ -78,11 +78,15 @@ export default function Cobrancas() {
   return (
     <>
       <PageHeader titulo="Cobranças e pagamentos" subtitulo="Geradas a partir dos contratos e adicionais. Pagamentos são registrados manualmente."
-        acoes={podeEditar && (
-          <button className="btn-primary" disabled={mes === 0 || gerar.isPending} onClick={() => gerar.mutate()} title={mes === 0 ? 'Selecione um mês para gerar' : undefined}>
-            {gerar.isPending ? 'Gerando…' : 'Gerar cobranças da competência'}
-          </button>)} />
-      <div className="mb-3 flex flex-wrap items-center gap-2">
+        acoes={(
+          <div className="no-print flex gap-2">
+            <button className="btn-ghost" onClick={() => window.print()}>Imprimir / PDF</button>
+            {podeEditar && (
+              <button className="btn-primary" disabled={mes === 0 || gerar.isPending} onClick={() => gerar.mutate()} title={mes === 0 ? 'Selecione um mês para gerar' : undefined}>
+                {gerar.isPending ? 'Gerando…' : 'Gerar cobranças da competência'}
+              </button>)}
+          </div>)} />
+      <div className="no-print mb-3 flex flex-wrap items-center gap-2">
         <SeletorAno valor={ano} onChange={setAno} /><SeletorMes valor={mes} onChange={setMes} todos />
         <select className="input w-auto" value={status} onChange={(e) => setStatus(e.target.value as StatusExibicao | '')} aria-label="Situação">
           {STATUS.map(([v, r]) => <option key={v} value={v}>{r}</option>)}

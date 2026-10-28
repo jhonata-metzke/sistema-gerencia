@@ -19,6 +19,8 @@ export default function Mensalidades() {
   const [situacao, setSituacao] = useState('ativo')
   const [aberto, setAberto] = useState<string | null>(null)
   const [novo, setNovo] = useState(false)
+  const [sel, setSel] = useState<Set<string>>(new Set())
+  const [reajustar, setReajustar] = useState(false)
 
   const q = useQuery({
     queryKey: ['contratos', empresaId],
@@ -40,17 +42,32 @@ export default function Mensalidades() {
   return (
     <>
       <PageHeader titulo="Mensalidades" subtitulo="Clique em um contrato para ver todos os detalhes."
-        acoes={podeEditar && <button className="btn-primary" onClick={() => setNovo(true)}>Novo contrato</button>} />
+        acoes={podeEditar && (
+          <div className="flex gap-2">
+            <button className="btn-ghost" disabled={!sel.size} onClick={() => setReajustar(true)}>Reajustar selecionados ({sel.size})</button>
+            <button className="btn-primary" onClick={() => setNovo(true)}>Novo contrato</button>
+          </div>
+        )} />
       <div className="mb-3 flex flex-wrap gap-2">
         <Busca valor={busca} onChange={setBusca} placeholder="Cliente, CNPJ ou descrição" />
         <select className="input w-auto" value={situacao} onChange={(e) => setSituacao(e.target.value)} aria-label="Situação do contrato">
           <option value="ativo">Ativos</option><option value="suspenso">Suspensos</option><option value="encerrado">Encerrados</option><option value="todos">Todos</option>
         </select>
+        {podeEditar && linhas.length > 0 && (
+          <button className="btn-ghost" onClick={() => setSel(sel.size === linhas.length ? new Set() : new Set(linhas.map((c) => c.id)))}>
+            {sel.size === linhas.length ? 'Limpar seleção' : `Selecionar os ${linhas.length} exibidos`}
+          </button>
+        )}
       </div>
       {q.isLoading ? <Carregando /> : q.error ? <ErroBox erro={q.error} /> : (
         <Tabela linhas={linhas} chave={(c) => c.id} aoClicar={(c) => setAberto(c.id)}
           colunas={[
-            { titulo: 'Razão social', render: (c) => c.cliente_razao_social },
+            { titulo: 'Razão social', render: (c) => (
+              <span className="flex items-center gap-2">
+                {podeEditar && <input type="checkbox" aria-label={`Selecionar ${c.cliente_razao_social}`} checked={sel.has(c.id)} onClick={(e) => e.stopPropagation()}
+                  onChange={() => { const n = new Set(sel); if (n.has(c.id)) n.delete(c.id); else n.add(c.id); setSel(n) }} />}
+                {c.cliente_razao_social}
+              </span>) },
             { titulo: 'CNPJ', render: (c) => formatarCnpj(c.cliente_cnpj) },
             { titulo: 'Valor', alinhar: 'right', render: (c) => moeda(c.valor_atual) },
             { titulo: 'Descrição', render: (c) => c.descricao },
@@ -58,7 +75,70 @@ export default function Mensalidades() {
       )}
       {aberto && <ContratoDetalhe id={aberto} onClose={() => setAberto(null)} />}
       {novo && <ContratoForm onClose={() => setNovo(false)} />}
+      {reajustar && <ReajusteLote contratos={(q.data ?? []).filter((c) => sel.has(c.id))} onClose={(limpar) => { setReajustar(false); if (limpar) setSel(new Set()) }} />}
     </>
+  )
+}
+
+function ReajusteLote({ contratos, onClose }: { contratos: ContratoLista[]; onClose: (limparSelecao?: boolean) => void }) {
+  const qc = useQueryClient()
+  const toast = useToast()
+  const [pct, setPct] = useState('')
+  const [vigencia, setVigencia] = useState(hoje())
+  const [motivo, setMotivo] = useState('')
+  const [erro, setErro] = useState('')
+  const [abertas, setAbertas] = useState<number | null>(null)
+  const ids = contratos.map((c) => c.id)
+  const p = lerMoeda(pct)
+  const atual = contratos.reduce((a, c) => a + Number(c.valor_atual), 0)
+  const novo = p === null ? null : contratos.reduce((a, c) => a + Math.round(Number(c.valor_atual) * (1 + p / 100) * 100) / 100, 0)
+  const salvar = useMutation({
+    mutationFn: async () => {
+      if (p === null || p <= -100) throw new Error('Informe um percentual válido (ex.: 5 ou 4,5).')
+      const r = await supabase.rpc('reajustar_contratos', { p_ids: ids, p_percentual: p, p_vigencia: vigencia, p_motivo: motivo || null })
+      if (r.error) throw r.error
+      const c = await supabase.rpc('contar_cobrancas_abertas_lote', { p_ids: ids, p_vigencia: vigencia })
+      if (c.error) throw c.error
+      return { alterados: Number(r.data ?? 0), abertas: Number(c.data ?? 0) }
+    },
+    onSuccess: (x) => {
+      qc.invalidateQueries()
+      if (x.abertas > 0) { setAbertas(x.abertas); return }
+      toast('ok', `${x.alterados} contrato(s) reajustado(s).`); onClose(true)
+    },
+    onError: (e) => setErro(mensagemErro(e)),
+  })
+  const aplicar = useMutation({
+    mutationFn: async () => { const r = await supabase.rpc('atualizar_cobrancas_abertas_lote', { p_ids: ids, p_vigencia: vigencia }); if (r.error) throw r.error; return Number(r.data ?? 0) },
+    onSuccess: (n) => { qc.invalidateQueries(); toast('ok', `Reajuste salvo e ${n} cobrança(s) em aberto atualizada(s).`); onClose(true) },
+    onError: (e) => setErro(mensagemErro(e)),
+  })
+  if (abertas !== null) {
+    return (
+      <Modal titulo="Cobranças em aberto" onClose={() => onClose(true)}>
+        <div className="space-y-3">
+          <p className="text-sm">O reajuste foi salvo. Há <strong>{abertas}</strong> cobrança(s) em aberto (pendentes, sem pagamento) desses contratos a partir de {competencia(vigencia.slice(0, 7) + '-01')}.</p>
+          <p className="text-sm text-sub">Deseja atualizá-las para o novo valor? Cobranças pagas ou parcialmente pagas nunca são alteradas.</p>
+          {erro && <p role="alert" className="text-sm text-bad">{erro}</p>}
+          <div className="flex justify-end gap-2">
+            <button type="button" className="btn-ghost" onClick={() => { toast('ok', 'Reajuste salvo; cobranças em aberto mantidas.'); onClose(true) }}>Manter como estão</button>
+            <button type="button" className="btn-primary" disabled={aplicar.isPending} onClick={() => { setErro(''); aplicar.mutate() }}>Atualizar em aberto</button>
+          </div>
+        </div>
+      </Modal>
+    )
+  }
+  return (
+    <Modal titulo={`Reajustar ${contratos.length} contrato(s)`} onClose={() => onClose()}>
+      <form onSubmit={(e: FormEvent) => { e.preventDefault(); setErro(''); salvar.mutate() }} className="space-y-3">
+        <Campo rotulo="Percentual de reajuste (%) *" dica="Use valor negativo para desconto."><input className="input" required inputMode="decimal" value={pct} onChange={(e) => setPct(e.target.value)} placeholder="5" /></Campo>
+        <Campo rotulo="Vigente a partir de *"><input className="input" type="date" required value={vigencia} onChange={(e) => setVigencia(e.target.value)} /></Campo>
+        <Campo rotulo="Motivo"><input className="input" value={motivo} onChange={(e) => setMotivo(e.target.value)} placeholder="Ex.: reajuste anual" /></Campo>
+        <p className="text-sm text-sub">Soma dos valores por cobrança: {moeda(atual)}{novo !== null && <> → <strong className="text-fg">{moeda(novo)}</strong></>}. Se houver cobranças em aberto, você escolhe se elas também mudam.</p>
+        {erro && <p role="alert" className="text-sm text-bad">{erro}</p>}
+        <div className="flex justify-end gap-2"><button type="button" className="btn-ghost" onClick={() => onClose()}>Cancelar</button><button className="btn-primary" disabled={salvar.isPending}>Aplicar reajuste</button></div>
+      </form>
+    </Modal>
   )
 }
 

@@ -26,3 +26,12 @@ body { @apply bg-bg text-fg antialiased; font-family: system-ui, -apple-system, 
 .th { @apply px-3 py-2 text-left text-xs font-semibold uppercase tracking-wide text-sub; }
 .td { @apply px-3 py-2 text-sm; }
 }
+
+@media print {
+  .no-print, aside, header.sticky { display: none !important; }
+  body { background: #fff !important; color: #000 !important; }
+  main { padding: 0 !important; }
+  .overflow-x-auto { overflow: visible !important; }
+  table { min-width: 0 !important; font-size: 11px; }
+  tr { break-inside: avoid; }
+}

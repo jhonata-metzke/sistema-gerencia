@@ -100,7 +100,7 @@ function ParametrosForm({ empresaId, ano, atual, regimeEmpresa, podeGerir }: { e
   const toast = useToast()
   const [f, setF] = useState({
     limite: atual ? String(atual.limite).replace('.', ',') : '', atencao: String(atual?.alerta_atencao ?? 70), critico: String(atual?.alerta_critico ?? 90),
-    regime: atual?.regime ?? regimeEmpresa ?? '', criterio: atual?.criterio ?? 'Faturamento por competência: mensalidades, adicionais e vendas faturadas, líquido de cancelamentos.', observacoes: atual?.observacoes ?? '',
+    regime: atual?.regime ?? regimeEmpresa ?? '', anterior: atual?.faturamento_anterior ? String(atual.faturamento_anterior).replace('.', ',') : '', criterio: atual?.criterio ?? 'Faturamento por competência: mensalidades, adicionais e vendas faturadas, líquido de cancelamentos.', observacoes: atual?.observacoes ?? '',
   })
   const [erro, setErro] = useState('')
   const salvar = useMutation({
@@ -109,7 +109,9 @@ function ParametrosForm({ empresaId, ano, atual, regimeEmpresa, podeGerir }: { e
       if (limite === null || limite <= 0) throw new Error('Informe o limite de referência.')
       const a = Number(f.atencao.replace(',', '.')); const c = Number(f.critico.replace(',', '.'))
       if (!(a > 0 && c > a && c <= 100)) throw new Error('Os percentuais devem ser crescentes (atenção < crítico ≤ 100).')
-      const r = await supabase.from('parametros_limite').upsert({ empresa_id: empresaId, ano, limite, alerta_atencao: a, alerta_critico: c, regime: f.regime || null, criterio: f.criterio || null, observacoes: f.observacoes || null }, { onConflict: 'empresa_id,ano' })
+      const anterior = f.anterior.trim() ? lerMoeda(f.anterior) : 0
+      if (anterior === null || anterior < 0) throw new Error('Informe um valor válido para o faturamento anterior ao sistema.')
+      const r = await supabase.from('parametros_limite').upsert({ empresa_id: empresaId, ano, limite, faturamento_anterior: anterior, alerta_atencao: a, alerta_critico: c, regime: f.regime || null, criterio: f.criterio || null, observacoes: f.observacoes || null }, { onConflict: 'empresa_id,ano' })
       if (r.error) throw r.error
     },
     onSuccess: () => { qc.invalidateQueries(); toast('ok', 'Parâmetros salvos. Os lançamentos não foram alterados.') },
@@ -122,6 +124,7 @@ function ParametrosForm({ empresaId, ano, atual, regimeEmpresa, podeGerir }: { e
         <Campo rotulo="Alerta de atenção (%)" dica="Sugestão inicial: 70"><input className="input" inputMode="decimal" value={f.atencao} onChange={(e) => setF({ ...f, atencao: e.target.value })} disabled={!podeGerir} /></Campo>
         <Campo rotulo="Alerta crítico (%)" dica="Sugestão inicial: 90"><input className="input" inputMode="decimal" value={f.critico} onChange={(e) => setF({ ...f, critico: e.target.value })} disabled={!podeGerir} /></Campo>
         <Campo rotulo="Regime (referência)"><input className="input" value={f.regime} onChange={(e) => setF({ ...f, regime: e.target.value })} disabled={!podeGerir} /></Campo>
+        <Campo rotulo={`Faturamento de ${ano} anterior ao sistema (R$)`} dica="Opcional. O que já foi faturado no ano antes de usar o sistema; soma-se ao acumulado do limite (não entra no dashboard)."><input className="input" inputMode="decimal" placeholder="0,00" value={f.anterior} onChange={(e) => setF({ ...f, anterior: e.target.value })} disabled={!podeGerir} /></Campo>
         <Campo rotulo="Critério de apuração" className="sm:col-span-2"><input className="input" value={f.criterio} onChange={(e) => setF({ ...f, criterio: e.target.value })} disabled={!podeGerir} /></Campo>
         <Campo rotulo="Observações" className="sm:col-span-3"><textarea className="input" rows={2} value={f.observacoes} onChange={(e) => setF({ ...f, observacoes: e.target.value })} disabled={!podeGerir} /></Campo>
         {erro && <p role="alert" className="text-sm text-bad sm:col-span-3">{erro}</p>}

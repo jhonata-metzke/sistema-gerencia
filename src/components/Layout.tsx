@@ -31,7 +31,7 @@ export default function Layout() {
         </nav>
       </aside>
       <div className="min-w-0 flex-1">
-        <header className="sticky top-0 z-20 flex flex-wrap items-center gap-3 border-b border-line bg-surface px-4 py-2">
+        <header className="no-print sticky top-0 z-20 flex flex-wrap items-center gap-3 border-b border-line bg-surface px-4 py-2">
           <button className="btn-ghost px-2 py-1 lg:hidden" onClick={() => setAberto(true)} aria-label="Abrir menu">☰</button>
           <label className="flex items-center gap-2 text-sm">
             <span className="text-sub">Empresa</span>

@@ -129,7 +129,7 @@ export default function Relatorios() {
   return (
     <>
       <PageHeader titulo="Relatórios" subtitulo="Respeitam a empresa selecionada no topo e usam os mesmos critérios do dashboard." />
-      <div className="card mb-4 grid grid-cols-1 gap-3 sm:grid-cols-3">
+      <div className="card no-print mb-4 grid grid-cols-1 gap-3 sm:grid-cols-3">
         <Campo rotulo="Relatório" className="sm:col-span-3">
           <select className="input" value={id} onChange={(e) => { setId(e.target.value); setLinhas(null) }}>{RELATORIOS.map((r) => <option key={r.id} value={r.id}>{r.titulo}</option>)}</select>
           <span className="mt-1 block text-xs text-sub">{rel.descricao}</span>
@@ -142,6 +142,7 @@ export default function Relatorios() {
           <button className="btn-primary" onClick={gerar} disabled={busy}>{busy ? 'Gerando…' : 'Gerar relatório'}</button>
           <button className="btn-ghost" disabled={!linhas?.length} onClick={() => linhas && exportarCsv(nomeArq, linhas)}>Exportar CSV</button>
           <button className="btn-ghost" disabled={!linhas?.length} onClick={() => linhas && exportarXlsx(nomeArq, linhas)}>Exportar Excel</button>
+          <button className="btn-ghost" disabled={!linhas?.length} onClick={() => window.print()}>Imprimir / PDF</button>
         </div>
       </div>
       <p className="mb-2 text-xs text-sub">Empresa: {empresaId ? nomeEmpresa(empresaId) : 'todas'}. Nem todo filtro se aplica a todos os relatórios (cliente e categoria valem onde o dado existe).</p>

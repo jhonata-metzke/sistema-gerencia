@@ -6,9 +6,10 @@ import { useEmpresa } from '@/lib/empresa-context'
 import { useAuth } from '@/auth/AuthProvider'
 import { DEFINICOES } from '@/lib/definicoes'
 import type { Auditoria, Papel } from '@/lib/types'
+import { exportarBackup } from '@/lib/exportar'
 import { Campo, Carregando, Confirmar, ErroBox, PageHeader, Secao, Tabela, mensagemErro, useToast } from '@/components/ui'
 
-const ABAS = ['Cadastros de apoio', 'Usuários e permissões', 'Histórico de alterações', 'Definições dos indicadores'] as const
+const ABAS = ['Cadastros de apoio', 'Usuários e permissões', 'Histórico de alterações', 'Backup', 'Definições dos indicadores'] as const
 type Aba = (typeof ABAS)[number]
 
 export default function Configuracoes() {
@@ -25,6 +26,7 @@ export default function Configuracoes() {
       {aba === 'Cadastros de apoio' && <Apoio podeGerir={podeGerir} />}
       {aba === 'Usuários e permissões' && (isOwner ? <Usuarios /> : <div className="card text-sm text-sub">Somente o proprietário gerencia usuários.</div>)}
       {aba === 'Histórico de alterações' && (isOwner ? <Historico /> : <div className="card text-sm text-sub">Somente o proprietário consulta o histórico.</div>)}
+      {aba === 'Backup' && (isOwner ? <Backup /> : <div className="card text-sm text-sub">Somente o proprietário gera backups.</div>)}
       {aba === 'Definições dos indicadores' && (
         <dl className="card space-y-3 text-sm">{Object.entries(DEFINICOES).map(([k, v]) => <div key={k}><dt className="font-medium">{k}</dt><dd className="text-sub">{v}</dd></div>)}</dl>
       )}
@@ -71,6 +73,7 @@ function Apoio({ podeGerir }: { podeGerir: boolean }) {
 }
 
 interface LinhaUsuario { user_id: string; email: string; papel_id: string | null; empresa_id: string | null; papel: Papel | null }
+interface LinhaConvite { id: string; email: string; empresa_id: string; papel: Papel }
 function Usuarios() {
   const qc = useQueryClient()
   const toast = useToast()
@@ -78,9 +81,18 @@ function Usuarios() {
   const q = useQuery({ queryKey: ['usuarios'], queryFn: async () => ok(await supabase.rpc('listar_usuarios')) as LinhaUsuario[] })
   const [f, setF] = useState({ email: '', empresa_id: '', papel: 'operador' })
   const [remover, setRemover] = useState<LinhaUsuario | null>(null)
+  const convites = useQuery({ queryKey: ['convites'], queryFn: async () => ok(await supabase.rpc('listar_convites')) as LinhaConvite[] })
   const atribuir = useMutation({
-    mutationFn: async () => { const r = await supabase.rpc('atribuir_papel', { p_email: f.email, p_empresa: f.empresa_id, p_papel: f.papel }); if (r.error) throw r.error },
-    onSuccess: () => { qc.invalidateQueries({ queryKey: ['usuarios'] }); toast('ok', 'Permissão concedida.') }, onError: (e) => toast('erro', mensagemErro(e)),
+    mutationFn: async () => { const r = await supabase.rpc('convidar', { p_email: f.email, p_empresa: f.empresa_id, p_papel: f.papel }); if (r.error) throw r.error; return String(r.data) },
+    onSuccess: (x) => {
+      qc.invalidateQueries({ queryKey: ['usuarios'] }); qc.invalidateQueries({ queryKey: ['convites'] })
+      toast('ok', x === 'concedido' ? 'Permissão concedida.' : 'Convite registrado: a pessoa já pode criar a conta com este e-mail.')
+    },
+    onError: (e) => toast('erro', mensagemErro(e)),
+  })
+  const tirarConvite = useMutation({
+    mutationFn: async (id: string) => { const r = await supabase.rpc('remover_convite', { p_id: id }); if (r.error) throw r.error },
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ['convites'] }); toast('ok', 'Convite removido.') }, onError: (e) => toast('erro', mensagemErro(e)),
   })
   const tirar = useMutation({
     mutationFn: async (id: string) => { const r = await supabase.rpc('remover_papel', { p_id: id }); if (r.error) throw r.error },
@@ -92,10 +104,10 @@ function Usuarios() {
     <>
       <Secao titulo="Conceder acesso a uma empresa">
         <form className="card grid grid-cols-1 gap-3 sm:grid-cols-4" onSubmit={(e: FormEvent) => { e.preventDefault(); atribuir.mutate() }}>
-          <Campo rotulo="E-mail da conta" className="sm:col-span-2" dica="A pessoa precisa criar a conta antes."><input className="input" type="email" required value={f.email} onChange={(e) => setF({ ...f, email: e.target.value })} /></Campo>
+          <Campo rotulo="E-mail da pessoa" className="sm:col-span-2" dica="Novas contas só podem ser criadas por quem foi convidado aqui."><input className="input" type="email" required value={f.email} onChange={(e) => setF({ ...f, email: e.target.value })} /></Campo>
           <Campo rotulo="Empresa"><select className="input" required value={f.empresa_id} onChange={(e) => setF({ ...f, empresa_id: e.target.value })}><option value="">Selecione…</option>{empresas.map((e) => <option key={e.id} value={e.id}>{e.nome_fantasia || e.razao_social}</option>)}</select></Campo>
           <Campo rotulo="Função"><select className="input" value={f.papel} onChange={(e) => setF({ ...f, papel: e.target.value })}><option value="gestor">Gestor (configura e gerencia)</option><option value="operador">Operador (lança dados)</option><option value="leitor">Leitor (só consulta)</option></select></Campo>
-          <div className="sm:col-span-4"><button className="btn-primary" disabled={atribuir.isPending}>Conceder</button></div>
+          <div className="sm:col-span-4"><button className="btn-primary" disabled={atribuir.isPending}>Convidar / conceder</button></div>
         </form>
       </Secao>
       <Secao titulo="Usuários e permissões">
@@ -103,7 +115,12 @@ function Usuarios() {
           { titulo: 'E-mail', render: (u) => u.email }, { titulo: 'Empresa', render: (u) => (u.papel === 'owner' ? 'Todas' : u.empresa_id ? nomeEmpresa(u.empresa_id) : '—') },
           { titulo: 'Função', render: (u) => u.papel ?? 'sem acesso' },
           { titulo: '', render: (u) => (u.papel_id && u.papel !== 'owner' ? <button className="btn-ghost px-2 py-1 text-xs" onClick={() => setRemover(u)}>Remover</button> : null) }]} />
-        <p className="mt-1 text-xs text-sub">Dica de segurança: após criar as contas necessárias, desative novos cadastros (sign-ups) no backend.</p>
+        <p className="mt-1 text-xs text-sub">O cadastro de novas contas é bloqueado para quem não foi convidado.</p>
+      </Secao>
+      <Secao titulo="Convites pendentes">
+        <Tabela linhas={convites.data ?? []} chave={(c) => c.id} vazio="Nenhum convite pendente." colunas={[
+          { titulo: 'E-mail', render: (c) => c.email }, { titulo: 'Empresa', render: (c) => nomeEmpresa(c.empresa_id) }, { titulo: 'Função', render: (c) => c.papel },
+          { titulo: '', render: (c) => <button className="btn-ghost px-2 py-1 text-xs" onClick={() => tirarConvite.mutate(c.id)}>Cancelar convite</button> }]} />
       </Secao>
       {remover && <Confirmar titulo="Remover permissão" perigo rotulo="Remover" texto={`Remover o acesso de ${remover.email}?`} onConfirm={() => tirar.mutateAsync(remover.papel_id!)} onClose={() => setRemover(null)} />}
     </>
@@ -127,5 +144,21 @@ function Historico() {
       )}
       <p className="mt-1 text-xs text-sub">Últimos 200 registros.</p>
     </>
+  )
+}
+
+function Backup() {
+  const toast = useToast()
+  const [busy, setBusy] = useState(false)
+  async function gerar() {
+    setBusy(true)
+    try { const n = await exportarBackup(supabase); toast('ok', `Backup gerado com ${n} tabelas.`) } catch (e) { toast('erro', mensagemErro(e)) } finally { setBusy(false) }
+  }
+  return (
+    <div className="card space-y-3 text-sm">
+      <p>Baixa uma planilha Excel com todos os dados do sistema (empresas, clientes, contratos, cobranças, pagamentos, vendas, limites e demais cadastros), uma aba por tabela.</p>
+      <p className="text-sub">Guarde o arquivo em local seguro; ele contém dados dos seus clientes. Recomendação: gerar uma vez por mês.</p>
+      <button className="btn-primary" onClick={gerar} disabled={busy}>{busy ? 'Gerando…' : 'Gerar backup completo (Excel)'}</button>
+    </div>
   )
 }

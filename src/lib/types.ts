@@ -60,7 +60,7 @@ export interface Cancelamento { chave: string; empresa_id: string; cliente_id: s
 
 export interface ParametroLimite {
   id: string; empresa_id: string; ano: number; regime: string | null; limite: number
-  alerta_atencao: number; alerta_critico: number; criterio: string | null; observacoes: string | null
+  alerta_atencao: number; alerta_critico: number; criterio: string | null; observacoes: string | null; faturamento_anterior: number
 }
 export interface LimiteSituacao {
   empresa_id: string; ano: number; regime: string | null; limite: number | null; alerta_atencao: number | null

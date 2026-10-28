@@ -1,3 +1,4 @@
+alter table auth.users disable trigger bloquear_cadastro;
 update auth.users set email = null;
 insert into auth.users (id, email) select id, k || '@teste.local' from t_ids where k in ('owner','gestor1','oper2','leitor1','semPapel');
 

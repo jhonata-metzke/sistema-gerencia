@@ -15,5 +15,7 @@ end $$;
 grant anon, authenticated to authenticator;
 grant usage on schema public to anon;
 grant execute on function public.tenho_owner() to anon;
+alter table auth.users disable trigger bloquear_cadastro;
 insert into auth.users (id, email) values ('00000000-0000-0000-0000-0000000000a1', 'dono@teste.local');
+alter table auth.users enable trigger bloquear_cadastro;
 SQL

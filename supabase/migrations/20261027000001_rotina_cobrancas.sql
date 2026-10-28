@@ -47,4 +47,11 @@ begin
 end $$;
 revoke all on function public.rotina_cobrancas() from public, anon, authenticated;
 
-select cron.schedule('rotina-cobrancas', '0 9 * * *', 'select public.rotina_cobrancas()');
+-- Agenda a rotina todos os dias às 09:00 UTC (06:00 em Brasília), onde o pg_cron existe (Lovable Cloud/Supabase).
+do $$
+begin
+  if exists (select 1 from pg_available_extensions where name = 'pg_cron') then
+    create extension if not exists pg_cron;
+    perform cron.schedule('rotina-cobrancas', '0 9 * * *', 'select public.rotina_cobrancas()');
+  end if;
+end $$;
