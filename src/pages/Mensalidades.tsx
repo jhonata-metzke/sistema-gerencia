@@ -105,7 +105,7 @@ function ContratoDetalhe({ id, onClose }: { id: string; onClose: () => void }) {
       <Secao titulo="Histórico de valores (vigência)">
         <Tabela linhas={versoes.data ?? []} chave={(v) => v.id}
           colunas={[{ titulo: 'Vigente desde', render: (v) => data(v.vigencia_inicio) }, { titulo: 'Valor base', alinhar: 'right', render: (v) => moeda(v.valor_base) }, { titulo: 'Motivo', render: (v) => v.motivo ?? '—' }]} />
-        <p className="mt-1 text-xs text-sub">Alterações valem a partir da vigência; cobranças já geradas mantêm o valor da época.</p>
+        <p className="mt-1 text-xs text-sub">Alterações valem a partir da vigência; ao salvar, você escolhe se as cobranças em aberto também são atualizadas.</p>
       </Secao>
       <Secao titulo="Histórico de cobranças">
         <Tabela linhas={cobrancas.data ?? []} chave={(x) => x.id} vazio="Nenhuma cobrança gerada."
@@ -132,20 +132,52 @@ function AlterarValor({ contrato, onClose }: { contrato: ContratoLista; onClose:
   const [vigencia, setVigencia] = useState(hoje())
   const [motivo, setMotivo] = useState('')
   const [erro, setErro] = useState('')
+  const [abertas, setAbertas] = useState<number | null>(null)
   const salvar = useMutation({
     mutationFn: async () => {
       const v = lerMoeda(valor)
       if (v === null || v < 0) throw new Error('Informe um valor válido.')
       const r = await supabase.rpc('alterar_valor_contrato', { p_contrato: contrato.id, p_valor: v, p_vigencia: vigencia, p_motivo: motivo || null })
       if (r.error) throw r.error
+      const c = await supabase.rpc('contar_cobrancas_abertas', { p_contrato: contrato.id, p_vigencia: vigencia })
+      if (c.error) throw c.error
+      return Number(c.data ?? 0)
     },
-    onSuccess: () => { qc.invalidateQueries(); toast('ok', 'Valor alterado a partir da vigência informada.'); onClose() },
+    onSuccess: (n) => {
+      qc.invalidateQueries()
+      if (n > 0) { setAbertas(n); return }
+      toast('ok', 'Valor alterado a partir da vigência informada.'); onClose()
+    },
     onError: (e) => setErro(mensagemErro(e).includes('duplicate') ? 'Já existe uma alteração com esta data de vigência.' : mensagemErro(e)),
   })
+  const aplicar = useMutation({
+    mutationFn: async () => {
+      const r = await supabase.rpc('atualizar_cobrancas_abertas', { p_contrato: contrato.id, p_vigencia: vigencia })
+      if (r.error) throw r.error
+      return Number(r.data ?? 0)
+    },
+    onSuccess: (n) => { qc.invalidateQueries(); toast('ok', `Valor alterado e ${n} cobrança(s) em aberto atualizada(s).`); onClose() },
+    onError: (e) => setErro(mensagemErro(e)),
+  })
+  if (abertas !== null) {
+    return (
+      <Modal titulo="Cobranças em aberto" onClose={onClose}>
+        <div className="space-y-3">
+          <p className="text-sm">O novo valor foi salvo. Há <strong>{abertas}</strong> cobrança(s) em aberto (pendentes, sem pagamento) deste contrato a partir de {competencia(vigencia.slice(0, 7) + '-01')}.</p>
+          <p className="text-sm text-sub">Deseja atualizá-las para o novo valor? Cobranças pagas ou parcialmente pagas nunca são alteradas.</p>
+          {erro && <p role="alert" className="text-sm text-bad">{erro}</p>}
+          <div className="flex justify-end gap-2">
+            <button type="button" className="btn-ghost" onClick={() => { toast('ok', 'Valor alterado; cobranças em aberto mantidas.'); onClose() }}>Manter como estão</button>
+            <button type="button" className="btn-primary" disabled={aplicar.isPending} onClick={() => { setErro(''); aplicar.mutate() }}>Atualizar em aberto</button>
+          </div>
+        </div>
+      </Modal>
+    )
+  }
   return (
     <Modal titulo="Alterar valor do contrato" onClose={onClose}>
       <form onSubmit={(e: FormEvent) => { e.preventDefault(); setErro(''); salvar.mutate() }} className="space-y-3">
-        <p className="text-sm text-sub">Valor atual: {moeda(contrato.valor_atual)}. Cobranças já geradas não serão alteradas.</p>
+        <p className="text-sm text-sub">Valor atual: {moeda(contrato.valor_atual)}. Se houver cobranças em aberto, você escolhe se elas também mudam.</p>
         <Campo rotulo="Novo valor base (R$) *"><input className="input" required inputMode="decimal" value={valor} onChange={(e) => setValor(e.target.value)} placeholder="0,00" /></Campo>
         <Campo rotulo="Vigente a partir de *"><input className="input" type="date" required value={vigencia} onChange={(e) => setVigencia(e.target.value)} /></Campo>
         <Campo rotulo="Motivo"><input className="input" value={motivo} onChange={(e) => setMotivo(e.target.value)} placeholder="Ex.: reajuste anual" /></Campo>
